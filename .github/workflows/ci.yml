@@ -1,0 +1,56 @@
+# CI only: lint, types, tests, hygiene and the self-checking offline demo. NO deploy, NO cloud credentials, NO secrets.
+# Third-party actions are pinned to full commit SHAs (tag in the comment).
+# NOTE: this workflow has not been executed on GitHub (the repository has no remote); it was only validated locally.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r requirements-lock.txt
+          .venv/bin/python -m pip install --no-deps -e .
+      - name: Lint (ruff)
+        run: .venv/bin/ruff check .
+      - name: Type check (mypy)
+        run: .venv/bin/mypy
+      - name: Tests (complete suite)
+        run: .venv/bin/python -m pytest -q
+      - name: Hygiene (lock pins + secret patterns)
+        run: .venv/bin/python scripts/check_hygiene.py --installed
+      - name: Pipeline demo (self-checking)
+        run: .venv/bin/python -m pipeline demo --workdir .demo
+      - name: Showcase (SYNTHETIC data; writes a static results page)
+        run: .venv/bin/python -m pipeline showcase --workdir .demo/showcase
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: showcase-output
+          path: |
+            .demo/showcase/results.html
+            .demo/showcase/results.csv
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retail-data-pipeline"
+version = "0.1.0"
+description = "SYNTHETIC-data retail data engineering portfolio: validated, idempotent, incremental pipeline into DuckDB (optional Snowflake adapter)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Saveliev Dmitry" }]
+requires-python = ">=3.11"
+dependencies = ["duckdb>=1.4"]
+
+[project.optional-dependencies]
+snowflake = ["snowflake-connector-python>=3.6"]
+dev = ["pytest>=8", "ruff>=0.17", "mypy>=2.4"]
+
+[project.scripts]
+retail-pipeline = "pipeline.cli:main"
+
+[tool.setuptools]
+packages = ["pipeline", "pipeline.warehouse", "data"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["e2e: end-to-end CLI tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [".tools", ".demo", ".review*"]
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, isort, bugbear, pyupgrade, bandit (security) subset
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+# Style rules ignored so the baseline is not churned; correctness/security rules stay on.
+ignore = ["E501", "E702", "E731", "E741", "UP006", "UP007", "UP017", "UP031", "UP035", "UP037", "B904", "B905", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+"scripts/*" = ["S"]
+"data/generator.py" = ["S311"]            # seeded random on purpose: deterministic SYNTHETIC data, not security
+"pipeline/warehouse/*" = ["S608"]         # SQL text is built only from module constants/placeholders; values are bound parameters
+"pipeline/oracle.py" = ["S608"]
+"pipeline/runner.py" = ["S608"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["pipeline", "data", "scripts"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["snowflake.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Test-data generator builds heterogeneous record lists; annotating it properly is future work (known gap, see README).
+module = ["data.generator"]
+ignore_errors = true
